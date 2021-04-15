@@ -35,7 +35,6 @@
     X(apator162,  C1_bit|T1_bit, WaterMeter,       APATOR162,   Apator162)   \
     X(cma12w,     C1_bit|T1_bit, TempHygroMeter,   CMA12W,      CMa12w)      \
     X(compact5,   T1_bit, HeatMeter,        COMPACT5,    Compact5)     \
-    X(dme_07,     T1_bit, WaterMeter,       DME_07,      DME_07)      \
     X(ebzwmbe,    T1_bit, ElectricityMeter, EBZWMBE, EBZWMBE)          \
     X(eurisii,    T1_bit, HeatCostAllocationMeter, EURISII, EurisII)   \
     X(ehzp,       T1_bit, ElectricityMeter, EHZP,        EHZP)         \
@@ -43,6 +42,7 @@
     X(flowiq2200, C1_bit, WaterMeter,       FLOWIQ2200,  FlowIQ2200)   \
     X(flowiq3100, C1_bit, WaterMeter,       FLOWIQ3100,  FlowIQ3100)   \
     X(ei6500,     C1_bit, SmokeDetector,    EI6500,      EI6500)       \
+    X(ei650fa,    C1_bit, SmokeDetector,    EI650FA,     EI650FA)      \
     X(elf,        T1_bit, HeatMeter,        ELF,         Elf)          \
     X(em24,       C1_bit, ElectricityMeter, EM24,        EM24)         \
     X(emerlin868, T1_bit, WaterMeter,       EMERLIN868,  EMerlin868)   \
@@ -61,7 +61,6 @@
     X(lansenth,   T1_bit, TempHygroMeter,   LANSENTH,    LansenTH)     \
     X(lansendw,   T1_bit, DoorWindowDetector, LANSENDW,  LansenDW)     \
     X(lansenpu,   T1_bit, PulseCounter,     LANSENPU,    LansenPU)     \
-    X(lse_07_17,  S1_bit, WaterMeter,       LSE_07_17,   LSE_07_17)    \
     X(mkradio3,   T1_bit, WaterMeter,       MKRADIO3,    MKRadio3)     \
     X(mkradio4,   T1_bit, WaterMeter,       MKRADIO4,    MKRadio4)     \
     X(multical21, C1_bit|T1_bit, WaterMeter,       MULTICAL21,  Multical21)   \

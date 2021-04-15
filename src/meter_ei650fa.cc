@@ -30,27 +30,23 @@
 #define BATBIT2			0x0400
 #define BATBIT3			0x0800
 #define LOW_BAT_FAULT_FLAG		0x1000
-#define ALARM_SENSOR_FAULT_FLAG	0x2000
-#define OBSTACLE_DETECTION_FAULT_FLAG	0x4000
-#define EOL_FLAG			0x8000
-#define SEODS_INST_FLAG		0x10000
-#define ENV_HAS_CHANGED_FLAG		0x20000
-#define COM_TO_HEAD_FAULT_FLAG	0x40000
-#define ULTRASONIC_INTF_PRES_FLAG	0x80000
-#define DIST_BIT20			0x100000
-#define DIST_BIT21			0x200000
-#define DIST_BIT22			0x400000
-#define OBSTACLE_DETECT_FLAG		0x1000000
-#define COVERING_DETECT_FLAG		0x2000000
+#define HEAD_FAULT_FLAG		0x2000
+#define PARITY_BIT_FLAG 		0x8000
+#define ALARM_ACT_FLAG			0x10000
+#define TEST_BTN_ACT_FLAG		0x20000
+#define LOW_BAT_ACT_FAULT_FLAG     	0x40000
+#define SENSOR_FAULT_FLAG		0x80000
+#define GLITCH_DETECT_FLAG		0x100000
+#define HEAD_CONNECT_FLAG		0x2000000
+#define COMMSLINK_FLAG			0x40000000
 
 
-struct MeterEI6500 : public virtual SmokeDetector, public virtual MeterCommonImplementation
+struct MeterEI650FA : public virtual SmokeDetector, public virtual MeterCommonImplementation
 {
-    MeterEI6500(MeterInfo &mi);
+    MeterEI650FA(MeterInfo &mi);
 
     string status();
     bool smokeDetected();
-    string softwareVersion();
     string messageDate();
     string commissionDate();
     string lastSounderTestDate();
@@ -88,8 +84,8 @@ private:
     map<int,string> error_codes_;
 };
 
-MeterEI6500::MeterEI6500(MeterInfo &mi) :
-    MeterCommonImplementation(mi, MeterDriver::EI6500)
+MeterEI650FA::MeterEI650FA(MeterInfo &mi) :
+    MeterCommonImplementation(mi, MeterDriver::EI650FA)
 {
     setExpectedTPLSecurityMode(TPLSecurityMode::AES_CBC_IV);
 
@@ -105,11 +101,11 @@ MeterEI6500::MeterEI6500(MeterInfo &mi) :
     addPrint("software_version", Quantity::Text,
              [&](){ return software_version_; },
              "Software version.",
-             true, true);
+             false, true);
     addPrint("message_datetime", Quantity::Text,
              [&](){ return messageDate(); },
              "Date of message.",
-             true, true);
+             false, true);
     addPrint("commission_date", Quantity::Text,
              [&](){ return commissionDate(); },
              "Commission date",
@@ -122,6 +118,10 @@ MeterEI6500::MeterEI6500(MeterInfo &mi) :
              [&](){ return smokeAlarmCounter(); },
              "Number of times smoke alarm was triggered.",
              true, true);
+    addPrint("total_remove_duration", Quantity::Text,
+             [&](){ return totalRemoveDuration(); },
+             "Number of times it was removed.",
+             true, true);
     addPrint("last_remove_date", Quantity::Text,
              [&](){ return lastRemoveDate(); },
              "Date of last removal.",
@@ -129,10 +129,6 @@ MeterEI6500::MeterEI6500(MeterInfo &mi) :
     addPrint("removed_counter", Quantity::Text,
              [&](){ return removedCounter(); },
              "removed counter",
-             true, true);
-    addPrint("total_remove_duration", Quantity::Text,
-             [&](){ return totalRemoveDuration(); },
-             "Number of times it was removed.",
              true, true);
     addPrint("test_button_last_date", Quantity::Text,
              [&](){ return testButtonLastDate(); },
@@ -142,10 +138,6 @@ MeterEI6500::MeterEI6500(MeterInfo &mi) :
              [&](){ return testButtonCounter(); },
              "test button counter",
              true, true);
-    addPrint("sounder_test_last_date", Quantity::Text,
-             [&](){ return sounderTestLastDate(); },
-             "Date of last sounder test.",
-             true, true);             
     addPrint("status", Quantity::Text,
              [&](){ return status(); },
              "Status of smoke detector.",
@@ -154,76 +146,80 @@ MeterEI6500::MeterEI6500(MeterInfo &mi) :
              [&](){ return head_status(); },
              "Head status of smoke detector.",
              true, true);
+    addPrint("sounder_test_last_date", Quantity::Text,
+             [&](){ return sounderTestLastDate(); },
+             "Date of last sounder test.",
+             true, true);             
 }
 
-shared_ptr<SmokeDetector> createEI6500(MeterInfo &mi)
+shared_ptr<SmokeDetector> createEI650FA(MeterInfo &mi)
 {
-    return shared_ptr<SmokeDetector>(new MeterEI6500(mi));
+    return shared_ptr<SmokeDetector>(new MeterEI650FA(mi));
 }
 
-bool MeterEI6500::smokeDetected()
+bool MeterEI650FA::smokeDetected()
 {
     return 0;
 }
 
-void MeterEI6500::processContent(Telegram *t)
+void MeterEI650FA::processContent(Telegram *t)
 {
     /*
-      (ei6500) 11: 0B dif (6 digit BCD Instantaneous value)
-      (ei6500) 12: FD vif (Second extension FD of VIF-codes)
-      (ei6500) 13: 0F vife (Software version #)
-      (ei6500) 14: * 060101 software version (1.1.6)
-      (ei6500) 17: 04 dif (32 Bit Integer/Binary Instantaneous value)
-      (ei6500) 18: 6D vif (Date and time type)
-      (ei6500) 19: * 300CAB22 message datetime (2021-02-11 12:48)
-      (ei6500) 1d: 02 dif (16 Bit Integer/Binary Instantaneous value)
-      (ei6500) 1e: FD vif (Second extension FD of VIF-codes)
-      (ei6500) 1f: 17 vife (Error flags (binary))
-      (ei6500) 20: * 0000 info codes (148ce5d8)
-      (ei6500) 22: 82 dif (16 Bit Integer/Binary Instantaneous value)
-      (ei6500) 23: 20 dife (subunit=0 tariff=2 storagenr=0)
-      (ei6500) 24: 6C vif (Date type G)
-      (ei6500) 25: AB22
-      (ei6500) 27: 42 dif (16 Bit Integer/Binary Instantaneous value storagenr=1)
-      (ei6500) 28: 6C vif (Date type G)
-      (ei6500) 29: 0101
-      (ei6500) 2b: 84 dif (32 Bit Integer/Binary Instantaneous value)
-      (ei6500) 2c: 40 dife (subunit=1 tariff=0 storagenr=0)
-      (ei6500) 2d: FF vif (Vendor extension)
-      (ei6500) 2e: 2C vife (per litre)
-      (ei6500) 2f: 000F1100
-      (ei6500) 33: 82 dif (16 Bit Integer/Binary Instantaneous value)
-      (ei6500) 34: 50 dife (subunit=1 tariff=1 storagenr=0)
-      (ei6500) 35: FD vif (Second extension FD of VIF-codes)
-      (ei6500) 36: 61 vife (Cumulation counter)
-      (ei6500) 37: * 0000 smoke alarm counter (0)
-      (ei6500) 39: 82 dif (16 Bit Integer/Binary Instantaneous value)
-      (ei6500) 3a: 50 dife (subunit=1 tariff=1 storagenr=0)
-      (ei6500) 3b: 6C vif (Date type G)
-      (ei6500) 3c: * 0101 last alarm date (2000-01-01)
-      (ei6500) 3e: 82 dif (16 Bit Integer/Binary Instantaneous value)
-      (ei6500) 3f: 60 dife (subunit=1 tariff=2 storagenr=0)
-      (ei6500) 40: FD vif (Second extension FD of VIF-codes)
-      (ei6500) 41: 61 vife (Cumulation counter)
-      (ei6500) 42: * 0000 removed counter (0)
-      (ei6500) 44: 83 dif (24 Bit Integer/Binary Instantaneous value)
-      (ei6500) 45: 60 dife (subunit=1 tariff=2 storagenr=0)
-      (ei6500) 46: FD vif (Second extension FD of VIF-codes)
-      (ei6500) 47: 31 vife (Duration of tariff [minute(s)])
-      (ei6500) 48: * 000000 total remove duration (0)
-      (ei6500) 4b: 82 dif (16 Bit Integer/Binary Instantaneous value)
-      (ei6500) 4c: 60 dife (subunit=1 tariff=2 storagenr=0)
-      (ei6500) 4d: 6C vif (Date type G)
-      (ei6500) 4e: * 0101 last remove date (2000-01-01)
-      (ei6500) 50: 82 dif (16 Bit Integer/Binary Instantaneous value)
-      (ei6500) 51: 70 dife (subunit=1 tariff=3 storagenr=0)
-      (ei6500) 52: FD vif (Second extension FD of VIF-codes)
-      (ei6500) 53: 61 vife (Cumulation counter)
-      (ei6500) 54: * 0100 test button counter (1)
-      (ei6500) 56: 82 dif (16 Bit Integer/Binary Instantaneous value)
-      (ei6500) 57: 70 dife (subunit=1 tariff=3 storagenr=0)
-      (ei6500) 58: 6C vif (Date type G)
-      (ei6500) 59: * AB22 test button last date (2021-02-11)
+      (EI650FA) 11: 0B dif (6 digit BCD Instantaneous value)
+      (EI650FA) 12: FD vif (Second extension FD of VIF-codes)
+      (EI650FA) 13: 0F vife (Software version #)
+      (EI650FA) 14: * 060101 software version (1.1.6)
+      (EI650FA) 17: 04 dif (32 Bit Integer/Binary Instantaneous value)
+      (EI650FA) 18: 6D vif (Date and time type)
+      (EI650FA) 19: * 300CAB22 message datetime (2021-02-11 12:48)
+      (EI650FA) 1d: 02 dif (16 Bit Integer/Binary Instantaneous value)
+      (EI650FA) 1e: FD vif (Second extension FD of VIF-codes)
+      (EI650FA) 1f: 17 vife (Error flags (binary))
+      (EI650FA) 20: * 0000 info codes (148ce5d8)
+      (EI650FA) 22: 82 dif (16 Bit Integer/Binary Instantaneous value)
+      (EI650FA) 23: 20 dife (subunit=0 tariff=2 storagenr=0)
+      (EI650FA) 24: 6C vif (Date type G)
+      (EI650FA) 25: AB22
+      (EI650FA) 27: 42 dif (16 Bit Integer/Binary Instantaneous value storagenr=1)
+      (EI650FA) 28: 6C vif (Date type G)
+      (EI650FA) 29: 0101
+      (EI650FA) 2b: 84 dif (32 Bit Integer/Binary Instantaneous value)
+      (EI650FA) 2c: 40 dife (subunit=1 tariff=0 storagenr=0)
+      (EI650FA) 2d: FF vif (Vendor extension)
+      (EI650FA) 2e: 2C vife (per litre)
+      (EI650FA) 2f: 000F1100
+      (EI650FA) 33: 82 dif (16 Bit Integer/Binary Instantaneous value)
+      (EI650FA) 34: 50 dife (subunit=1 tariff=1 storagenr=0)
+      (EI650FA) 35: FD vif (Second extension FD of VIF-codes)
+      (EI650FA) 36: 61 vife (Cumulation counter)
+      (EI650FA) 37: * 0000 smoke alarm counter (0)
+      (EI650FA) 39: 82 dif (16 Bit Integer/Binary Instantaneous value)
+      (EI650FA) 3a: 50 dife (subunit=1 tariff=1 storagenr=0)
+      (EI650FA) 3b: 6C vif (Date type G)
+      (EI650FA) 3c: * 0101 last alarm date (2000-01-01)
+      (EI650FA) 3e: 82 dif (16 Bit Integer/Binary Instantaneous value)
+      (EI650FA) 3f: 60 dife (subunit=1 tariff=2 storagenr=0)
+      (EI650FA) 40: FD vif (Second extension FD of VIF-codes)
+      (EI650FA) 41: 61 vife (Cumulation counter)
+      (EI650FA) 42: * 0000 removed counter (0)
+      (EI650FA) 44: 83 dif (24 Bit Integer/Binary Instantaneous value)
+      (EI650FA) 45: 60 dife (subunit=1 tariff=2 storagenr=0)
+      (EI650FA) 46: FD vif (Second extension FD of VIF-codes)
+      (EI650FA) 47: 31 vife (Duration of tariff [minute(s)])
+      (EI650FA) 48: * 000000 total remove duration (0)
+      (EI650FA) 4b: 82 dif (16 Bit Integer/Binary Instantaneous value)
+      (EI650FA) 4c: 60 dife (subunit=1 tariff=2 storagenr=0)
+      (EI650FA) 4d: 6C vif (Date type G)
+      (EI650FA) 4e: * 0101 last remove date (2000-01-01)
+      (EI650FA) 50: 82 dif (16 Bit Integer/Binary Instantaneous value)
+      (EI650FA) 51: 70 dife (subunit=1 tariff=3 storagenr=0)
+      (EI650FA) 52: FD vif (Second extension FD of VIF-codes)
+      (EI650FA) 53: 61 vife (Cumulation counter)
+      (EI650FA) 54: * 0100 test button counter (1)
+      (EI650FA) 56: 82 dif (16 Bit Integer/Binary Instantaneous value)
+      (EI650FA) 57: 70 dife (subunit=1 tariff=3 storagenr=0)
+      (EI650FA) 58: 6C vif (Date type G)
+      (EI650FA) 59: * AB22 test button last date (2021-02-11)
     */
     int offset;
 
@@ -267,32 +263,32 @@ void MeterEI6500::processContent(Telegram *t)
     last_alarm_date_ = strdate(&datetime);
     t->addMoreExplanation(offset, " last alarm date (%s)", last_alarm_date_.c_str());
 
-    extractDVuint16(&t->values, "8250FD61", &offset, &smoke_alarm_counter_);
+    extractDVuint16(&t->values, "8450FD61", &offset, &smoke_alarm_counter_);
     t->addMoreExplanation(offset, " smoke alarm counter (%zu)", smoke_alarm_counter_);
-    
-    extractDVdate(&t->values, "82606C", &offset, &datetime);
-    last_remove_date_ = strdate(&datetime);
-    t->addMoreExplanation(offset, " last remove date (%s)", last_remove_date_.c_str());
 
-    extractDVuint16(&t->values, "8260FD61", &offset, &removed_counter_);
+    extractDVuint16(&t->values, "8460FD61", &offset, &removed_counter_);
     t->addMoreExplanation(offset, " removed counter (%zu)", removed_counter_);
+
+    extractDVuint16(&t->values, "8470FD61", &offset, &test_button_counter_);
+    t->addMoreExplanation(offset, " test button counter (%zu)", test_button_counter_);
 
     extractDVuint24(&t->values, "8360FD31", &offset, &total_remove_duration_);
     t->addMoreExplanation(offset, " total remove duration (%zu)", total_remove_duration_);
 
+    extractDVdate(&t->values, "82606C", &offset, &datetime);
+    last_remove_date_ = strdate(&datetime);
+    t->addMoreExplanation(offset, " last remove date (%s)", last_remove_date_.c_str());
+
     extractDVdate(&t->values, "82706C", &offset, &datetime);
     test_button_last_date_ = strdate(&datetime);
     t->addMoreExplanation(offset, " test button last date (%s)", test_button_last_date_.c_str());
-
-    extractDVuint16(&t->values, "8270FD61", &offset, &test_button_counter_);
-    t->addMoreExplanation(offset, " test button counter (%zu)", test_button_counter_);
-
+    
     extractDVdate(&t->values, "426C", &offset, &datetime);
     sounder_test_last_date_ = strdate(&datetime);
     t->addMoreExplanation(offset, " sounder test last date (%s)", sounder_test_last_date_.c_str());
 }
 
-string MeterEI6500::status()
+string MeterEI650FA::status()
 {
     string s = decodeTPLStatusByte(tpl_sts_, &error_codes_);
 
@@ -309,83 +305,76 @@ string MeterEI6500::status()
     return "OK";
 }
 
-string MeterEI6500::softwareVersion()
+string MeterEI650FA::messageDate()
 {
-	return "Software Version: " + software_version_;
+	return message_datetime_;
 }
 
-string MeterEI6500::messageDate()
+string MeterEI650FA::commissionDate()
 {
-	return "Message date & time: " + message_datetime_;
+	return commission_date_;
 }
 
-string MeterEI6500::commissionDate()
+string MeterEI650FA::lastAlarmDate()
 {
-	return "Commission date: " + commission_date_;
+	return last_alarm_date_;
 }
 
-string MeterEI6500::lastAlarmDate()
+string MeterEI650FA::totalRemoveDuration()
 {
-	return "Last alarm date: " + last_alarm_date_;
+	return to_string(total_remove_duration_) + " minutes";
 }
 
-string MeterEI6500::smokeAlarmCounter()
+string MeterEI650FA::smokeAlarmCounter()
 {
-	return "Alarm counter: " + to_string(smoke_alarm_counter_);
+	return to_string(smoke_alarm_counter_);
 }
 
-string MeterEI6500::testButtonLastDate()
+string MeterEI650FA::testButtonCounter()
 {
-	return "Last test button date: " + test_button_last_date_;
+	return to_string(test_button_counter_);
 }
 
-string MeterEI6500::testButtonCounter()
+string MeterEI650FA::removedCounter()
 {
-	return "Test button counter: " + to_string(test_button_counter_);
+	return to_string(removed_counter_);
 }
 
-string MeterEI6500::lastRemoveDate()
+string MeterEI650FA::lastRemoveDate()
 {
-	return "Head removed date: " + last_remove_date_;
+	return last_remove_date_;
 }
 
-string MeterEI6500::removedCounter()
+string MeterEI650FA::testButtonLastDate()
 {
-	return "Head removed counter: " + to_string(removed_counter_);
+	return test_button_last_date_;
 }
 
-string MeterEI6500::totalRemoveDuration()
+string MeterEI650FA::sounderTestLastDate()
 {
-	return "Remove duration: " + to_string(total_remove_duration_) + " minutes";
+	return sounder_test_last_date_;
 }
 
-string MeterEI6500::sounderTestLastDate()
-{
-	return "Last sounder test date: " + sounder_test_last_date_;
-}
-
-
-string MeterEI6500::head_status()
+string MeterEI650FA::head_status()
 {
     string hs = decodeTPLStatusByte(tpl_sts_, &error_codes_);
 
     if (hs == "OK") hs = ""; else hs += " ";
 
-    if (head_status_ & SEODS_INST_FLAG) hs.append("SEODS Installation Complete ");
     if (head_status_ & HEAD_TAMPER_FLAG) hs.append("HEAD TAMPER FLAG Set ");
+    if (head_status_ & SOUNDER_FAULT_FLAG) hs.append("SOUNDER FAULT FLAG Set ");
     if (head_status_ & LOW_BAT_FAULT_FLAG) hs.append("LOW BATTERY FLAG Set ");
-    if (head_status_ & ALARM_SENSOR_FAULT_FLAG) hs.append("ALARM SENSOR FAULT FLAG Set ");
-    if (head_status_ & OBSTACLE_DETECTION_FAULT_FLAG) hs.append("OBSTACLE DETECTION FAULT FLAG Set ");
     if (head_status_ & EOL_REACHED_FLAG) hs.append("EOL REACHED FLAG Set ");
-
-    
+    if (head_status_ & HEAD_FAULT_FLAG) hs.append("HEAD FAULT FLAG Set ");
+    if (head_status_ & PARITY_BIT_FLAG) hs.append("PARITY BIT FLAG Set ");
+    if (head_status_ & GLITCH_DETECT_FLAG) hs.append("GLITCH DETECT FLAG Set ");
    
  
     if (hs.length() > 0)
     {
         // There is something to report!
         hs.pop_back(); // Remove final space
-        return "Head status: " + hs;
+        return hs;
     }
-    return "Head status OK";
+    return "OK";
 }

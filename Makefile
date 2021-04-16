@@ -156,6 +156,7 @@ METER_OBJS:=\
 	$(BUILD)/meter_hydrocalm3.o \
 	$(BUILD)/meter_hydrodigit.o \
 	$(BUILD)/meter_ei6500.o \
+	$(BUILD)/meter_ei650FA.o \
 	$(BUILD)/meter_iperl.o \
 	$(BUILD)/meter_izar.o \
 	$(BUILD)/meter_izar3.o \
